@@ -5,6 +5,8 @@ import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import pg from "pg";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 
 dotenv.config();
 
@@ -300,13 +302,37 @@ app.post("/api/docs/generate", auth, docsApiGuard, async (req, res) => {
   } catch (e) { res.status(e.status || 500).json({ error: e.message, code: e.code }); }
 });
 
+function ensureFrontendBuild() {
+  const indexFile = path.join(__dirname, "dist", "index.html");
+  if (!fs.existsSync(indexFile)) {
+    console.log("dist/index.html não existe. Executando npm run build...");
+    execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"], {
+      cwd: __dirname,
+      stdio: "inherit"
+    });
+  }
+  if (!fs.existsSync(indexFile)) {
+    throw new Error("O build terminou, mas dist/index.html não foi criado.");
+  }
+}
+
 // Production: serve the Vite build.
 const dist = path.join(__dirname, "dist");
 app.use(express.static(dist));
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) return next();
-  res.sendFile(path.join(dist, "index.html"));
+  const indexFile = path.join(dist, "index.html");
+  res.sendFile(indexFile, (err) => {
+    if (err) {
+      console.error("Frontend não foi compilado. Execute npm run build.", err);
+      if (!res.headersSent) {
+        res.status(503).send("Frontend ainda não foi compilado. Aguarde o deploy terminar e tente novamente.");
+      }
+    }
+  });
 });
+
+ensureFrontendBuild();
 
 initDb()
   .then(() => {
