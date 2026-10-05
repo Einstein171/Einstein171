@@ -309,7 +309,18 @@ app.get("*", (req, res, next) => {
 });
 
 initDb()
-  .then(() => app.listen(PORT, () => console.log(`EinsteinEditaveis rodando na porta ${PORT}`)))
+  .then(() => const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, "dist");
+
+app.use(express.static(distPath));
+
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/")) return next();
+  res.sendFile(path.join(distPath, "index.html"));
+});
+
+app.listen(PORT, () => console.log(`EinsteinEditaveis rodando na porta ${PORT}`)))
   .catch((err) => {
     console.error("Falha ao iniciar banco:", err);
     process.exit(1);
